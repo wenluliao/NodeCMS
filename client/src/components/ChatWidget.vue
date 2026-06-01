@@ -107,7 +107,7 @@ async function sendMessage() {
 <style scoped>
 .chat-widget {
   position: fixed;
-  bottom: 24px;
+  bottom: 124px;
   right: 24px;
   z-index: 9999;
 }
