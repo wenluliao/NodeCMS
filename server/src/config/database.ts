@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import bcrypt from "bcryptjs";
 
 const DB_CONFIG = {
   host: "localhost",
@@ -50,7 +51,7 @@ async function initTables(db: mysql.Pool): Promise<void> {
       CREATE TABLE IF NOT EXISTS admin_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
-        password VARCHAR(100) NOT NULL,
+        password VARCHAR(255) NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
@@ -116,6 +117,10 @@ async function initTables(db: mysql.Pool): Promise<void> {
         FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    // 迁移：确保 password 字段能容纳 bcrypt 哈希值
+    await conn.execute(`
+      ALTER TABLE admin_users MODIFY COLUMN password VARCHAR(255) NOT NULL
+    `);
   } finally {
     conn.release();
   }
@@ -123,12 +128,22 @@ async function initTables(db: mysql.Pool): Promise<void> {
 
 async function seedData(db: mysql.Pool): Promise<void> {
   // Seed admin user
-  const [adminRows] = await db.execute("SELECT id FROM admin_users WHERE username = ?", ["admin"]);
-  if ((adminRows as any[]).length === 0) {
+  const [adminRows] = await db.execute("SELECT id, password FROM admin_users WHERE username = ?", ["admin"]);
+  const adminUsers = adminRows as any[];
+  if (adminUsers.length === 0) {
+    const hashedPassword = bcrypt.hashSync("admin123", 10);
     await db.execute("INSERT INTO admin_users (username, password) VALUES (?, ?)", [
       "admin",
-      "admin123",
+      hashedPassword,
     ]);
+  } else if (!adminUsers[0].password.startsWith("$2")) {
+    // 迁移：将明文密码升级为 bcrypt 哈希
+    const hashedPassword = bcrypt.hashSync(adminUsers[0].password, 10);
+    await db.execute("UPDATE admin_users SET password = ? WHERE id = ?", [
+      hashedPassword,
+      adminUsers[0].id,
+    ]);
+    console.log("[迁移] 已将 admin 用户密码从明文升级为 bcrypt 哈希");
   }
 
   // Seed default categories

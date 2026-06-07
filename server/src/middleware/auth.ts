@@ -1,7 +1,11 @@
 import {Request, Response, NextFunction} from "express";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
-const JWT_SECRET = "nodecms-secret-key-2024";
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  console.warn("[安全警告] 未配置 JWT_SECRET 环境变量，正在使用随机生成的密钥。服务重启后所有已签发的 token 将失效。请在环境变量中配置 JWT_SECRET。");
+  return crypto.randomBytes(32).toString("hex");
+})();
 
 export interface AuthRequest extends Request {
   user?: {id: number; username: string};
