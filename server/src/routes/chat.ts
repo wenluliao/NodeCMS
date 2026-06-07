@@ -3,13 +3,16 @@ import {getPool} from "../config/database";
 import {authMiddleware, AuthRequest} from "../middleware/auth";
 import type {ApiResponse, PaginatedData} from "../types";
 import axios from "axios";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const router = Router();
 
-// Bailian (DashScope) API config - compatible with OpenAI format
+// Bailian (DashScope) API config - 从环境变量读取，禁止硬编码
 const BAILIAN_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
-const BAILIAN_API_KEY = "sk-36aa145646ea41789a78a18243a1fee8";
-const BAILIAN_MODEL = "qwen-turbo";
+const BAILIAN_API_KEY = process.env.BAILIAN_API_KEY || "";
+const BAILIAN_MODEL = process.env.BAILIAN_MODEL || "qwen-turbo";
 
 // System prompt for the AI assistant
 const SYSTEM_PROMPT = `你是一个专业的律师事务所AI客服助手。你的职责是：

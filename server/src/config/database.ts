@@ -1,11 +1,14 @@
 import mysql from "mysql2/promise";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const DB_CONFIG = {
-  host: "localhost",
-  port: 3306,
-  user: "root",
-  password: "123456",
-  database: "nodecms",
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "3306", 10),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "nodecms",
 };
 
 let pool: mysql.Pool;
@@ -50,7 +53,7 @@ async function initTables(db: mysql.Pool): Promise<void> {
       CREATE TABLE IF NOT EXISTS admin_users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
-        password VARCHAR(100) NOT NULL,
+        password VARCHAR(255) NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
@@ -122,13 +125,27 @@ async function initTables(db: mysql.Pool): Promise<void> {
 }
 
 async function seedData(db: mysql.Pool): Promise<void> {
-  // Seed admin user
-  const [adminRows] = await db.execute("SELECT id FROM admin_users WHERE username = ?", ["admin"]);
-  if ((adminRows as any[]).length === 0) {
+  // Seed admin user - 使用 bcrypt 哈希密码
+  const [adminRows] = await db.execute("SELECT id, password FROM admin_users WHERE username = ?", ["admin"]);
+  const adminUsers = adminRows as any[];
+
+  if (adminUsers.length === 0) {
+    // 新安装：创建哈希密码
+    const bcrypt = await import("bcrypt");
+    const hashedPassword = await bcrypt.hash("admin123", 10);
     await db.execute("INSERT INTO admin_users (username, password) VALUES (?, ?)", [
       "admin",
-      "admin123",
+      hashedPassword,
     ]);
+  } else if (adminUsers[0].password && !adminUsers[0].password.startsWith("$2")) {
+    // 已有用户但密码是明文（未以 $2 开头），自动迁移为哈希密码
+    const bcrypt = await import("bcrypt");
+    const hashedPassword = await bcrypt.hash(adminUsers[0].password, 10);
+    await db.execute("UPDATE admin_users SET password = ? WHERE username = ?", [
+      hashedPassword,
+      "admin",
+    ]);
+    console.log("已自动将 admin 明文密码迁移为 bcrypt 哈希");
   }
 
   // Seed default categories

@@ -1,7 +1,10 @@
 import {Request, Response, NextFunction} from "express";
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
-const JWT_SECRET = "nodecms-secret-key-2024";
+dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || "please-change-this-secret-in-env";
 
 export interface AuthRequest extends Request {
   user?: {id: number; username: string};
