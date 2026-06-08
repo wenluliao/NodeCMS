@@ -48,13 +48,15 @@
 </template>
 
 <script setup lang="ts">
-import {ref, nextTick} from "vue";
-import {sendChatMessage} from "../api";
+import {ref, nextTick, onMounted} from "vue";
+import {sendChatMessage, getChatHistory} from "../api";
 
 interface ChatMsg {
   role: "user" | "assistant";
   content: string;
 }
+
+const CHAT_SESSION_KEY = "cms_chat_session_id";
 
 const isOpen = ref(false);
 const inputText = ref("");
@@ -62,6 +64,25 @@ const messages = ref<ChatMsg[]>([]);
 const loading = ref(false);
 const sessionId = ref("");
 const messagesRef = ref<HTMLElement>();
+
+onMounted(async () => {
+  const savedSessionId = localStorage.getItem(CHAT_SESSION_KEY);
+  if (savedSessionId) {
+    try {
+      const res = await getChatHistory(savedSessionId);
+      if (res.data.code === 0 && res.data.data?.length) {
+        sessionId.value = savedSessionId;
+        messages.value = res.data.data.map((m: any) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        }));
+      }
+    } catch {
+      // session not found or error, start fresh
+      localStorage.removeItem(CHAT_SESSION_KEY);
+    }
+  }
+});
 
 function toggleChat() {
   isOpen.value = !isOpen.value;
@@ -94,6 +115,7 @@ async function sendMessage() {
     });
     const data = res.data.data;
     sessionId.value = data.session_id;
+    localStorage.setItem(CHAT_SESSION_KEY, data.session_id);
     messages.value.push({role: "assistant", content: data.reply});
   } catch (e) {
     messages.value.push({role: "assistant", content: "抱歉，网络出了点问题，请稍后再试。"});

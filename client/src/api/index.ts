@@ -86,6 +86,11 @@ export const uploadFile = (file: File) => {
 export const sendChatMessage = (data: {session_id?: string; message: string}) =>
   request.post<ApiResponse<{session_id: string; reply: string}>>("/chat/send", data);
 
+export const getChatHistory = (sessionId: string) =>
+  request.get<ApiResponse<{role: string; content: string; created_at: string}[]>>(
+    `/chat/history/${sessionId}`,
+  );
+
 // Chat API (admin)
 export const getChatSessions = (params: {page?: number; pageSize?: number}) =>
   request.get<ApiResponse<PaginatedData<any>>>("/chat/sessions", {params});

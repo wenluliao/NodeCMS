@@ -104,12 +104,6 @@ router.post("/send", async (req: Request, res: Response) => {
       aiReply,
     ]);
 
-    // Update session message count
-    await db.execute(
-      "UPDATE chat_sessions SET message_count = message_count + 2 WHERE session_id = ?",
-      [sid],
-    );
-
     res.json({
       code: 0,
       message: "success",
@@ -135,7 +129,10 @@ router.get("/sessions", authMiddleware, async (req: AuthRequest, res: Response) 
     const total = (countRows as any[])[0].total;
 
     const [sessions] = await db.execute(
-      "SELECT * FROM chat_sessions ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+      `SELECT s.*,
+        (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id = s.session_id) AS message_count
+       FROM chat_sessions s
+       ORDER BY s.updated_at DESC LIMIT ? OFFSET ?`,
       [ps, offset],
     );
 
@@ -166,6 +163,28 @@ router.get(
     }
   },
 );
+
+// Get recent messages for a session (public, for restoring chat history)
+router.get("/history/:sessionId", async (req: Request, res: Response) => {
+  try {
+    const db = getPool();
+    const [rows] = await db.execute(
+      "SELECT session_id FROM chat_sessions WHERE session_id = ?",
+      [req.params.sessionId],
+    );
+    if ((rows as any[]).length === 0) {
+      res.json({code: 404, message: "会话不存在", data: null} as ApiResponse);
+      return;
+    }
+    const [messages] = await db.execute(
+      "SELECT role, content, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC LIMIT 50",
+      [req.params.sessionId],
+    );
+    res.json({code: 0, message: "success", data: messages} as ApiResponse);
+  } catch (err) {
+    res.json({code: 500, message: "服务器错误", data: null} as ApiResponse);
+  }
+});
 
 // Delete a chat session (admin)
 router.delete("/sessions/:sessionId", authMiddleware, async (req: AuthRequest, res: Response) => {
